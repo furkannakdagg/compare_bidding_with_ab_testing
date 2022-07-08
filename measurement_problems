@@ -1,0 +1,101 @@
+import itertools
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+# !pip install statsmodels
+import statsmodels.stats.api as sms
+from scipy.stats import ttest_1samp, shapiro, levene, ttest_ind, mannwhitneyu, \
+    pearsonr, spearmanr, kendalltau, f_oneway, kruskal
+from statsmodels.stats.proportion import proportions_ztest
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.float_format', lambda x: '%.5f' % x)
+
+##################
+# PART 1
+##################
+df_control = pd.read_excel("ab_testing.xlsx", sheet_name="Control Group")  # maximum bidding
+df_test = pd.read_excel("ab_testing.xlsx", sheet_name="Test Group")  # average bidding
+
+df_control.head()
+df_test.head()
+
+df_control.columns = [i+"_control" for i in df_control.columns]
+df_test.columns = [i+"_test" for i in df_test.columns]
+
+df_control.describe().T
+df_test.describe().T
+# Görüntülenme artsa da tıklanma azalmış fakat satın alma ve elde edilen gelir artmış
+
+sms.DescrStatsW(df_control["Purchase_control"]).tconfint_mean()  # 508.004-593.783
+sms.DescrStatsW(df_test["Purchase_test"]).tconfint_mean()  # 530.56-633.645
+
+df_final = pd.concat([df_control, df_test], axis=1)
+df_final.head()
+
+##################
+# PART 2
+##################
+
+# Hipotez
+# H0: M1 = M2 # Aver. bid. ve max. bid.'in Purchase ort. arasında ist. ol. anl. bir fark yoktur.
+# H1: M1 != M2
+
+df_final[["Purchase_control", "Purchase_test"]].mean()
+
+
+##################
+# PART 3
+##################
+
+# Varsayım Kontrolü
+
+# Normallik Varsayımı
+# H0: Normal dağılım varsayımı sağlanmaktadır.
+# H1:..sağlanmamaktadır.
+test_stat, pvalue = shapiro(df_final["Purchase_control"])
+print('Test Stat = %.4f, p-value = %.4f' % (test_stat, pvalue))
+# p-value = 0.5891 > 0.05, H0 reddedilemez
+
+test_stat, pvalue = shapiro(df_final["Purchase_test"])
+print('Test Stat = %.4f, p-value = %.4f' % (test_stat, pvalue))
+# p-value = 0.1541 > 0.05, H0 reddedilemez
+# H0: NORMAL DAĞILIM VARSAYIMI SAĞLANMAKTADIR HİPOTEZİ REDDEDİLEMEZ => normallik varsayımı sağlandı
+
+
+# Varyans Homojenliği
+# H0: Varyanslar Homojendir
+# H1: Varyanslar Homojen Değildir
+test_stat, pvalue = levene(df_final["Purchase_control"],
+                           df_final["Purchase_test"])
+print("Test stat = %.4f, p-value = %.4f" % (test_stat, pvalue))
+# p-value = 0.1083 > 0.05, H0 reddedilemez
+# H0: VARYANSLAR HOMOJENDİR HİPOTEZİ REDDEDİLEMEZ => varyans homojenliği varsayımı da sağlandı
+
+# VARSAYIMLAR SAĞLANDIĞINA GÖRE PARAMETRİK TEST YAPMAMIZ GEREKİR!
+# İKİ ÖRNEKLEM T TESTİ UYGULANIR!
+test_stat, pvalue = ttest_ind(df_final["Purchase_control"],
+                              df_final["Purchase_test"],
+                              equal_var=True)
+print("Test stat = %.4f, p-value = %.4f" % (test_stat, pvalue))
+"""
+p-value = 0.3493 > 0.05, H0 reddedilemez
+Yani başta kurduğumuz H0 hipotezi(max. bid. ve avg. bid. Purchase ort. arasında ist. ol. anl. bir fark yoktur) hipotezi
+REDDEDİLEMEZ. Matematiksel olarak gözüken fark tesadüf eseri ortaya çıkmıştır. İstatistiki olarak fark sağlanamamaktadır.
+"""
+
+
+##################
+# PART 4
+##################
+"""
+a. Öncelikle varsayım analizlerinin sağlanıp sağlanmadığına bakmamız gerekiyor. Normallik varsayımı için shapiro testine,
+varyans homojenliği için levene testine baktım. İkisinde de H0 reddedilemedi, yani varsayımlar sağlandı. Dolayısıyla
+hipotezime parametrik test yapmam gerekli, parametrik test olarak da iki örneklem t testi uygulandı. 
+
+b. Yapılan harcalamarın öncekinden farkı olmadığını ve bir katma değer uygulamadığı sonucuna varabiliriz. Dolayısıyla müşterimize 
+buraya harcama ve yatırım yapmasını durdurup eski sistemden devam etmesinde bir sakınca olmadığı yönünde tavsiye verebiliriz.
+"""
+
